@@ -1,0 +1,25 @@
+{
+  "name": "atelier-repliques-local",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build && node scripts/build-sw.mjs",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "node tests/entry.mjs && node tests/e2e.mjs && node tests/imports.mjs && node tests/recording.mjs",
+    "test:voice": "node tests/voice.mjs"
+  },
+  "dependencies": {
+    "@diffusionstudio/piper-wasm": "1.0.0",
+    "jszip": "3.10.2",
+    "mammoth": "1.13.0",
+    "onnxruntime-web": "1.23.2",
+    "pdfjs-dist": "6.5.438"
+  },
+  "devDependencies": {
+    "playwright-core": "1.65.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.8"
+  }
+}
