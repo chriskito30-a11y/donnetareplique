@@ -15,6 +15,8 @@ try {
   const page = await context.newPage();
   const external = [];
   const errors = [];
+  page.on('console', message => console.error('BROWSER:', message.type(), message.text()));
+  page.on('requestfailed', request => console.error('REQUEST:', request.url(), request.failure()?.errorText));
   page.on('request', request => { if (!request.url().startsWith('http://127.0.0.1:4173/') && !request.url().startsWith('blob:')) external.push(request.url()); });
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('http://127.0.0.1:4173/');
@@ -26,11 +28,14 @@ try {
   await page.locator('[data-line-text]').dispatchEvent('change');
   await page.getByRole('button', { name: 'Passer à la répétition' }).click();
   await page.locator('[data-action="toggle-rehearsal-options"]').click();
-  assert.equal(await page.locator('.voice-assignment select option[value^="piper:"]').count(), 125);
-  await page.locator('.voice-assignment select').selectOption('piper:9');
-  await page.getByRole('button', { name: 'Écouter' }).click();
-  await page.waitForFunction(() => window.__plays > 0, null, { timeout: 120_000 });
+  assert.equal(await page.locator('.voice-assignment select option[value^="piper:"]').count(), 8);
+  const voiceSelect = page.locator('.voice-assignment select');
+  for (const [index, voice] of ['piper:siwis:0', 'piper:tom:0', 'piper:libritts:307'].entries()) {
+    await voiceSelect.selectOption(voice);
+    await page.getByRole('button', { name: 'Écouter' }).click();
+    await page.waitForFunction(expected => window.__plays >= expected, index + 1, { timeout: 60_000 });
+  }
   assert.deepEqual(errors, []);
   assert.deepEqual(external, []);
-  console.log('Piper OK : voix française 10 synthétisée localement, sans requête externe.');
+  console.log('Piper OK : Siwis, Tom et LibriTTS synthétisés localement, sans requête externe.');
 } finally { await browser.close(); }

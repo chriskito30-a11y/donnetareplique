@@ -1,5 +1,6 @@
 import './styles.css';
 import { AudioEngine, localVoices, startRecording, type RecorderHandle } from './audio';
+import { PIPER_VOICES, defaultPiperVoice } from './voices';
 import { downloadBlob, exportProject, importProject } from './backup';
 import { allProjects, deleteProject, deleteRecording, getProject, getRecording, putProject, putRecording, recordingsForProject } from './db';
 import { exportText, parseScript, textFromFile } from './parser';
@@ -187,7 +188,7 @@ function renderTranscript(): string {
       <label class="field"><span>Délai en secondes</span><input type="number" min="0" max="20" step="0.5" data-setting="waitMs" value="${p.settings.waitMs / 1000}" ${p.settings.waitMode !== 'delay' ? 'disabled' : ''} /></label>
       <label class="field"><span>Vitesse des voix</span><input type="range" min="0.5" max="2" step="0.1" data-setting="rate" value="${p.settings.rate}" /><small>${p.settings.rate.toFixed(1)}×</small></label>
     </div><div class="options-checks"><label class="check"><input type="checkbox" data-setting="loop" ${p.settings.loop ? 'checked' : ''} /> Boucler la plage</label><label class="check"><input type="checkbox" data-setting="useRecordings" ${p.settings.useRecordings ? 'checked' : ''} /> Utiliser les prises</label><label class="check"><input type="checkbox" data-setting="speakMine" ${p.settings.speakMine ? 'checked' : ''} /> Lire mes répliques</label><label class="check"><input type="checkbox" data-setting="speakDirections" ${p.settings.speakDirections ? 'checked' : ''} /> Lire les didascalies</label><label class="check"><input type="checkbox" data-setting="autoSkipToCue" ${p.settings.autoSkipToCue ? 'checked' : ''} /> Passer à mon prochain signal</label></div>
-    <div class="voice-assignments"><h3>Voix des personnages</h3><p>125 locuteurs français intégrés, disponibles sans Internet après installation complète.</p>${p.characters.map((c, i) => `<div class="voice-assignment"><span>${esc(c.name)}</span><select aria-label="Voix de ${esc(c.name)}" data-voice="${esc(c.id)}"><option value="">Voix automatique</option><optgroup label="Piper français · 125 locuteurs">${Array.from({ length: 125 }, (_, n) => `<option value="piper:${n}" ${(c.voiceURI || `piper:${i % 125}`) === `piper:${n}` ? 'selected' : ''}>Voix ${n + 1}</option>`).join('')}</optgroup><optgroup label="Voix locales du système">${localVoices().map(v => `<option value="${esc(v.voiceURI)}" ${c.voiceURI === v.voiceURI ? 'selected' : ''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</optgroup></select><button class="button small" data-action="preview-voice" data-id="${esc(c.id)}">Écouter</button></div>`).join('')}</div>
+    <div class="voice-assignments"><h3>Voix des personnages</h3><p>Voix Piper chargées depuis l’application : Siwis et Tom en français, plus six locuteurs LibriTTS anglophones à essayer sur votre texte.</p>${p.characters.map((c, i) => `<div class="voice-assignment"><span>${esc(c.name)}</span><select aria-label="Voix de ${esc(c.name)}" data-voice="${esc(c.id)}"><option value="">Voix automatique</option><optgroup label="Piper · français">${PIPER_VOICES.filter(v => v.language === 'fr').map(v => `<option value="${v.id}" ${(c.voiceURI || defaultPiperVoice(i)) === v.id ? 'selected' : ''}>${v.label}</option>`).join('')}</optgroup><optgroup label="Piper · accent anglais">${PIPER_VOICES.filter(v => v.language === 'en').map(v => `<option value="${v.id}" ${(c.voiceURI || defaultPiperVoice(i)) === v.id ? 'selected' : ''}>${v.label}</option>`).join('')}</optgroup><optgroup label="Voix locales du système">${localVoices().map(v => `<option value="${esc(v.voiceURI)}" ${c.voiceURI === v.voiceURI ? 'selected' : ''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</optgroup></select><button class="button small" data-action="preview-voice" data-id="${esc(c.id)}">Écouter</button></div>`).join('')}</div>
     <div class="range-tools"><span>Plage : ${p.rangeStartId ? p.lines.findIndex(l => l.id === p.rangeStartId) + 1 : 1} → ${p.rangeEndId ? p.lines.findIndex(l => l.id === p.rangeEndId) + 1 : p.lines.length}</span><button data-action="range-start">Début ici</button><button data-action="range-end">Fin ici</button><button data-action="range-clear">Effacer</button><button data-action="add-marker">+ Repère</button></div>
     ${p.markers.length ? `<div class="marker-strip">${p.markers.map(m => `<button data-action="jump-marker" data-id="${esc(m.lineId)}">${esc(m.label)}</button>`).join('')}</div>` : ''}</section>` : ''}
     <div class="cue-list" role="list" aria-label="Répliques du texte">${p.lines.map((line, i) => {
@@ -204,7 +205,7 @@ function renderSettings(): string {
 }
 function renderDataSettings(): string {
   const voices = localVoices();
-  return `<div class="two-column"><section class="panel"><span class="eyebrow">VOIX LOCALES</span><h2>125 locuteurs français</h2><p>Le modèle Piper français est intégré à l’application. Chaque personnage peut avoir son propre locuteur, sans compte ni connexion pendant la répétition.</p>${project ? '<button class="button primary" data-action="nav" data-screen="rehearse">Attribuer les voix dans la répétition</button>' : '<p>Ouvrez un projet pour attribuer les voix.</p>'}<h3>Voix locales du système</h3><p>${voices.length} voix supplémentaires signalées comme locales par ce navigateur.</p><div class="voice-list">${voices.map(v => `<div class="voice-row"><span>${esc(v.name)}</span><small>${esc(v.lang)}</small></div>`).join('') || '<p class="muted">Aucune voix système locale supplémentaire.</p>'}</div><p class="hint">Le modèle Piper prend environ 100 Mo avec ses composants. Attendez « Disponible hors ligne » avant de couper le réseau.</p></section>
+  return `<div class="two-column"><section class="panel"><span class="eyebrow">VOIX LOCALES</span><h2>Voix Piper Siwis, Tom et LibriTTS</h2><p>Siwis et Tom parlent français. Six locuteurs du modèle LibriTTS anglais sont proposés pour tester leur prononciation française avec accent.</p>${project ? '<button class="button primary" data-action="nav" data-screen="rehearse">Attribuer les voix dans la répétition</button>' : '<p>Ouvrez un projet pour attribuer les voix.</p>'}<h3>Voix locales du système</h3><p>${voices.length} voix supplémentaires signalées comme locales par ce navigateur.</p><div class="voice-list">${voices.map(v => `<div class="voice-row"><span>${esc(v.name)}</span><small>${esc(v.lang)}</small></div>`).join('') || '<p class="muted">Aucune voix système locale supplémentaire.</p>'}</div><p class="hint">Modèles téléchargés avec l’application ; synthèse exécutée sur l’appareil. Attendez « Disponible hors ligne » avant de couper le réseau.</p></section>
   <section class="panel"><span class="eyebrow">VOS DONNÉES</span><h2>Sauvegarde et transfert</h2><p>Vos textes et sons restent dans ce navigateur. Exportez une sauvegarde pour les transférer ou les conserver.</p>${project ? `<div class="stack"><button class="button primary" data-action="export-backup">Exporter ce projet avec ses sons</button><button class="button" data-action="export-text">Exporter le texte TXT</button></div>` : '<p>Ouvrez un projet pour l’exporter.</p>'}<label class="field"><span>Restaurer une archive locale</span><input id="backup-file" type="file" accept=".zip,application/zip" /></label><p class="hint">La restauration crée un nouveau projet.</p><div class="privacy-note"><strong>Fonctionnement local</strong><p>Aucun texte ni son n’est envoyé à un service distant.</p></div><p id="storage-estimate" class="muted">Stockage : estimation en cours…</p></section></div>`;
 }
 function updateLine(p: Project, lineId: string, update: (line: ScriptLine) => void): void {
@@ -301,7 +302,7 @@ async function playCurrentLine(p: Project, line: ScriptLine, token: number): Pro
   }
   if (!used && token === run) {
     const character = p.characters.find(c => c.id === line.characterId);
-    const voice = character?.voiceURI || (character && p.language.toLowerCase().startsWith('fr') ? `piper:${p.characters.indexOf(character) % 125}` : '');
+    const voice = character?.voiceURI || (character && p.language.toLowerCase().startsWith('fr') ? defaultPiperVoice(p.characters.indexOf(character)) : '');
     used = await audio.speak(spoken, voice ?? '', p.language, p.settings.rate);
   }
   if (!used && token === run) {
@@ -384,7 +385,7 @@ async function handleAction(button: HTMLElement): Promise<void> {
       if (!p) return;
       const c = p.characters.find(c => c.id === itemId);
       if (!c) return;
-      const voice = c.voiceURI || `piper:${p.characters.indexOf(c) % 125}`;
+      const voice = c.voiceURI || defaultPiperVoice(p.characters.indexOf(c));
       notify(`Préparation de la voix de ${c.name}…`);
       const ok = await audio.speak('Bonjour, voici ma voix pour cette répétition.', voice, p.language, p.settings.rate);
       if (!ok) notify('Cette voix n’a pas pu être lue sur cet appareil.', 'error');
@@ -420,7 +421,7 @@ async function handleAction(button: HTMLElement): Promise<void> {
       const name = prompt('Nom du personnage :')?.trim();
       if (!name) return;
       if (p.characters.some(c => c.name.toLocaleLowerCase() === name.toLocaleLowerCase())) return notify('Ce personnage existe déjà.', 'error');
-      updateProject(p, () => p.characters.push({ id: id(), name: name.slice(0, 100), color: '#396d78', voiceURI: `piper:${p.characters.length % 125}` })); return;
+      updateProject(p, () => p.characters.push({ id: id(), name: name.slice(0, 100), color: '#396d78', voiceURI: defaultPiperVoice(p.characters.length) })); return;
     }
     case 'delete-character': {
       if (!p) return;

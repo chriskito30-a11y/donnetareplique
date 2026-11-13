@@ -4,7 +4,7 @@ PWA originale de répétition théâtrale, sans compte, Firebase, API ni base di
 
 La répétition affiche **toutes les répliques en liste sur PC et mobile**. Les retours à la ligne d'une même réplique importée sont réunis jusqu'au prochain personnage, à vérifier dans l'aperçu. Les parenthèses et le texte italique reconnu dans les DOCX ou certains PDF sont des didascalies : ils restent visibles, et la lecture vocale les ignore par défaut. Le réglage « Lire les didascalies » permet de les inclure.
 
-Le modèle Piper français intégré propose **125 locuteurs** attribuables aux personnages, même si le navigateur n'expose qu'une seule voix système. Il ajoute environ 100 Mo aux fichiers à charger et au cache hors ligne. Voir [THIRD_PARTY.md](THIRD_PARTY.md) pour la provenance et les licences. Whisper n'est pas inclus : il sert à transcrire, pas à créer des voix.
+Les voix Piper incluses sont **Siwis et Tom en français**, ainsi que six locuteurs du modèle LibriTTS anglais à essayer avec des textes français. Chaque personnage peut recevoir une voix différente ; utilisez « Écouter » pour vérifier la prononciation. Les modèles pèsent environ 200 Mo, auxquels s’ajoutent le moteur et les ressources web ; ils sont inclus dans la PWA et fonctionnent hors ligne après le cache initial. Voir [THIRD_PARTY.md](THIRD_PARTY.md) pour la provenance et les licences. Whisper sert à transcrire, pas à créer des voix.
 
 ## Ouvrir sur ce PC
 

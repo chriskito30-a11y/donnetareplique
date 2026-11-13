@@ -16,9 +16,11 @@ type ModelConfig = {
 
 declare global { interface Window { createPiperPhonemize?: PiperFactory } }
 
-export const PIPER_SPEAKERS = 125;
 const local = (file: string) => new URL(`tts/${file}`, document.baseURI).href;
-let enginePromise: Promise<{ phonemizer: Phonemizer; session: ort.InferenceSession; config: ModelConfig }> | null = null;
+type ModelId = 'siwis' | 'tom' | 'libritts';
+const models: Record<ModelId, string> = { siwis: 'fr_FR-siwis-medium', tom: 'fr_FR-tom-medium', libritts: 'en_US-libritts_r-medium' };
+const sessions = new Map<ModelId, Promise<{ session: ort.InferenceSession; config: ModelConfig }>>();
+let phonemizerPromise: Promise<Phonemizer> | null = null;
 let output: PhonemeResult[] = [];
 
 async function loadPhonemizer(): Promise<Phonemizer> {
@@ -39,20 +41,23 @@ async function loadPhonemizer(): Promise<Phonemizer> {
   });
 }
 
-async function engine() {
-  if (!enginePromise) enginePromise = (async () => {
+async function phonemizer() {
+  if (!phonemizerPromise) phonemizerPromise = loadPhonemizer();
+  return phonemizerPromise;
+}
+
+async function engine(model: ModelId) {
+  if (!sessions.has(model)) sessions.set(model, (async () => {
     ort.env.wasm.numThreads = 1; // Compatible sans SharedArrayBuffer sur mobile.
     ort.env.wasm.wasmPaths = new URL('tts/', document.baseURI).href;
-    const [phonemizer, modelResponse, configResponse] = await Promise.all([
-      loadPhonemizer(), fetch(local('fr_FR-mls-medium.onnx')), fetch(local('fr_FR-mls-medium.onnx.json')),
-    ]);
+    const filename = models[model];
+    const [modelResponse, configResponse] = await Promise.all([fetch(local(`${filename}.onnx`)), fetch(local(`${filename}.onnx.json`))]);
     if (!modelResponse.ok || !configResponse.ok) throw new Error('Modèle français local indisponible.');
     const config = await configResponse.json() as ModelConfig;
-    if (config.num_speakers !== PIPER_SPEAKERS) throw new Error('Modèle de voix inattendu.');
     const session = await ort.InferenceSession.create(await modelResponse.arrayBuffer(), { executionProviders: ['wasm'] });
-    return { phonemizer, session, config };
-  })().catch(error => { enginePromise = null; throw error; });
-  return enginePromise;
+    return { session, config };
+  })().catch(error => { sessions.delete(model); throw error; }));
+  return sessions.get(model)!;
 }
 
 function wav(pcm: Float32Array, sampleRate: number): Blob {
@@ -81,14 +86,18 @@ function chunks(text: string): string[] {
   return result;
 }
 
-export async function synthesizeFrench(text: string, speakerId: number, rate: number): Promise<Blob> {
-  if (!Number.isInteger(speakerId) || speakerId < 0 || speakerId >= PIPER_SPEAKERS) throw new Error('Voix française invalide.');
-  const { phonemizer, session, config } = await engine();
+export async function synthesizePiper(text: string, voiceURI: string, rate: number): Promise<Blob> {
+  const [, model, rawId] = voiceURI.match(/^piper:(siwis|tom|libritts):(\d+)$/) ?? [];
+  if (!model || !rawId) throw new Error('Voix Piper invalide.');
+  const speakerId = Number(rawId);
+  const pid = model as ModelId;
+  const [{ session, config }, ph] = await Promise.all([engine(pid), phonemizer()]);
+  if (speakerId >= config.num_speakers) throw new Error('Locuteur absent du modèle Piper.');
   const audio: Float32Array[] = [];
   const gap = new Float32Array(Math.round(config.audio.sample_rate * 0.15));
   for (const part of chunks(text)) {
     output = [];
-    const status = phonemizer.callMain(['--espeak_data', '/espeak-ng-data', '--language', config.espeak.voice, '--input', JSON.stringify([{ text: part }])]);
+    const status = ph.callMain(['--espeak_data', '/espeak-ng-data', '--language', config.espeak.voice, '--input', JSON.stringify([{ text: part }])]);
     if (status !== 0 || !output.length) throw new Error('Phonétisation locale impossible.');
     for (const item of output) {
       const ids = item.phoneme_ids;
@@ -97,7 +106,7 @@ export async function synthesizeFrench(text: string, speakerId: number, rate: nu
         input: new ort.Tensor('int64', BigInt64Array.from(ids.map(BigInt)), [1, ids.length]),
         input_lengths: new ort.Tensor('int64', BigInt64Array.of(BigInt(ids.length)), [1]),
         scales: new ort.Tensor('float32', Float32Array.of(config.inference.noise_scale, config.inference.length_scale / rate, config.inference.noise_w), [3]),
-        sid: new ort.Tensor('int64', BigInt64Array.of(BigInt(speakerId)), [1]),
+        ...(config.num_speakers > 1 ? { sid: new ort.Tensor('int64', BigInt64Array.of(BigInt(speakerId)), [1]) } : {}),
       };
       const result = await session.run(feeds);
       const pcm = result.output?.data;

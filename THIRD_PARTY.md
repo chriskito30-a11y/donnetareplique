@@ -1,7 +1,11 @@
-# Voix locale française
+# Modèles et bibliothèques tiers
 
-La PWA embarque le modèle [`fr_FR-mls-medium`](https://huggingface.co/rhasspy/piper-voices/tree/main/fr/fr_FR/mls/medium) publié par Rhasspy : 125 locuteurs, français, 22 050 Hz. Son fichier ONNX a été téléchargé depuis ce dépôt et vérifié par SHA-256 : `0ed223f78466917f2bae05ee90096ce69ab1fdeb251f55590d0e7422d234e162`. La fiche `public/tts/MODEL_CARD.txt` indique un entraînement sur MLS (licence des données CC BY 4.0). Le dépôt des modèles est indiqué MIT.
+La PWA embarque trois modèles Piper officiels issus de [`rhasspy/piper-voices`](https://huggingface.co/rhasspy/piper-voices):
 
-La phonétisation utilise [`@diffusionstudio/piper-wasm` 1.0.0](https://github.com/diffusionstudio/piper-wasm), dont les binaires incluent eSpeak NG (GPL-3.0-or-later). L'inférence utilise [`onnxruntime-web` 1.23.2](https://github.com/microsoft/onnxruntime) (MIT). Les paquets ont été installés avec `--ignore-scripts`. Le modèle, les composants WASM et les données eSpeak sont servis par la PWA elle-même ; aucune requête vers Hugging Face, un CDN ou un service de synthèse n'est effectuée pendant l'utilisation.
+- [`fr_FR-siwis-medium`](https://huggingface.co/rhasspy/piper-voices/tree/main/fr/fr_FR/siwis/medium) : français, une voix, qualité annoncée moyenne. Licence du corpus : CC BY 4.0. Attribution à SIWIS/EPFL requise.
+- [`fr_FR-tom-medium`](https://huggingface.co/rhasspy/piper-voices/tree/main/fr/fr_FR/tom/medium) : français, une voix, qualité annoncée moyenne. La fiche du modèle indique AGPLv3.
+- [`en_US-libritts_r-medium`](https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US/libritts_r/medium) : anglais américain, 904 locuteurs. Six identifiants sont proposés ; la lecture du français peut avoir un accent et doit être écoutée avant usage. Corpus CC BY 4.0.
 
-Whisper, présent dans le paquet Android étudié, est un moteur de **transcription**. Il n'est pas réutilisé ici et ne produit pas de voix. Aucune ressource de Script Rehearser n'a été intégrée.
+Les qualités indiquées sont celles des fiches officielles, pas des garanties d'intelligibilité sur chaque téléphone. Les modèles sont fournis localement avec le site, sans téléchargement d'IA à l'utilisation.
+
+La phonétisation utilise [`@diffusionstudio/piper-wasm` 1.0.0](https://github.com/diffusionstudio/piper-wasm), qui embarque eSpeak NG (GPL-3.0-or-later). L'inférence utilise [`onnxruntime-web` 1.23.2](https://github.com/microsoft/onnxruntime) (MIT). Aucun code ou média de Script Rehearser n'est réutilisé.

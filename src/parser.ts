@@ -2,6 +2,7 @@ import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import mammothUrl from 'mammoth/mammoth.browser.js?url';
 import { id, newProject, type Character, type Project, type ScriptLine } from './types';
+import { defaultPiperVoice } from './voices';
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -107,7 +108,7 @@ export function parseScript(text: string, title: string): Project {
     const key = normalized.toLocaleLowerCase();
     let character = byName.get(key);
     if (!character) {
-      character = { id: id(), name: normalized, color: COLORS[byName.size % COLORS.length], voiceURI: `piper:${byName.size % 125}` };
+      character = { id: id(), name: normalized, color: COLORS[byName.size % COLORS.length], voiceURI: defaultPiperVoice(byName.size) };
       byName.set(key, character);
       project.characters.push(character);
     }

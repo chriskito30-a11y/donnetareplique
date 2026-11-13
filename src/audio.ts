@@ -1,4 +1,5 @@
-import { synthesizeFrench } from './piper';
+import { synthesizePiper } from './piper';
+import { PIPER_VOICES } from './voices';
 
 export function localVoices(): SpeechSynthesisVoice[] {
   if (!('speechSynthesis' in window)) return [];
@@ -50,7 +51,8 @@ export class AudioEngine {
     if (voiceURI.startsWith('piper:')) {
       const token = this.generation;
       try {
-        const blob = await synthesizeFrench(text, Number(voiceURI.slice(6)), rate);
+        const selected = PIPER_VOICES.find(voice => voice.id === voiceURI) ?? PIPER_VOICES[Number(voiceURI.slice(6)) % PIPER_VOICES.length];
+        const blob = await synthesizePiper(text, selected.id, rate);
         if (token !== this.generation) return false;
         return this.playBlob(blob);
       } catch (error) {
