@@ -24,11 +24,14 @@ function makePdf(text) {
   return Buffer.from(pdf);
 }
 
-async function makeDocx(text) {
+async function makeDocx(text, boldSpeaker = false) {
   const zip = new JSZip();
   zip.file('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
   zip.file('_rels/.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
-  zip.file('word/document.xml', `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:body></w:document>`);
+  const paragraphs = boldSpeaker
+    ? `<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>NANCY</w:t></w:r></w:p><w:p><w:r><w:t>${text}</w:t></w:r></w:p>`
+    : `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`;
+  zip.file('word/document.xml', `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraphs}</w:body></w:document>`);
   return zip.generateAsync({ type: 'nodebuffer' });
 }
 
@@ -45,14 +48,29 @@ try {
   assert.match(await page.locator('.preview-list').innerText(), /Bonjour PDF/);
   await page.getByRole('button', { name: 'Créer le projet' }).click();
   await page.getByRole('button', { name: 'Importer un texte' }).click();
-  await page.locator('#script-file').setInputFiles({ name: 'essai.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: await makeDocx('BOB: Bonjour DOCX') });
+  await page.locator('#script-file').setInputFiles({ name: 'essai.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: await makeDocx('Bonjour DOCX', true) });
   await page.getByRole('button', { name: 'Créer le projet' }).waitFor();
   assert.match(await page.locator('.preview-list').innerText(), /Bonjour DOCX/);
+  assert.match(await page.locator('.preview-list').innerText(), /NANCY/);
   await page.getByRole('button', { name: 'Créer le projet' }).click();
   await page.getByRole('button', { name: 'Importer un texte' }).click();
   await page.locator('#script-file').setInputFiles({ name: 'essai.txt', mimeType: 'text/plain', buffer: Buffer.from('CLARA : Bonjour TXT') });
   await page.getByRole('button', { name: 'Créer le projet' }).waitFor();
   assert.match(await page.locator('.preview-list').innerText(), /Bonjour TXT/);
+  await page.getByRole('button', { name: 'Importer un texte' }).click();
+  const noisyScript = [
+    'LA CANTATRICE CHAUVE', 'Une pièce de théâtre', 'Page 1', 'ACTE I', 'SCÈNE 1',
+    'NANCY', '(Elle entre.)', 'Bonjour, Monsieur.', 'MICHAEL : Je suis ici.', '2',
+  ].join('\n');
+  await page.locator('#script-file').setInputFiles({ name: 'piece.txt', mimeType: 'text/plain', buffer: Buffer.from(noisyScript) });
+  await page.getByRole('button', { name: 'Créer le projet' }).waitFor();
+  const preview = await page.locator('.preview-list').innerText();
+  assert.match(preview, /ACTE I/);
+  assert.match(preview, /SCÈNE 1/);
+  assert.match(preview, /NANCY/);
+  assert.match(preview, /MICHAEL/);
+  assert.match(preview, /Bonjour, Monsieur/);
+  assert.doesNotMatch(preview, /CANTATRICE|théâtre|Page 1|\n2\n/);
   assert.deepEqual(errors, []);
-  console.log('Imports OK : PDF textuel, DOCX et TXT lus localement.');
+  console.log('Imports OK : formats locaux, noms de personnages, scènes et folios filtrés.');
 } finally { await browser.close(); }

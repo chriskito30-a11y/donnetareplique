@@ -45,7 +45,8 @@ export async function textFromFile(file: File): Promise<string> {
       if (!(node instanceof Element)) return '';
       if (node.tagName === 'BR') return '\n';
       const content = [...node.childNodes].map(inlineText).join('');
-      return node.matches('em,i') ? `*${content}*` : content;
+      const italic = node.matches('em,i') ? `*${content}*` : content;
+      return node.matches('strong,b') ? `**${italic}**` : italic;
     };
     const paragraphs = [...documentHtml.body.querySelectorAll('p,h1,h2,h3,h4,h5,h6,li')]
       .map(node => inlineText(node).trim()).filter(Boolean);
@@ -60,24 +61,29 @@ export async function textFromFile(file: File): Promise<string> {
       const page = await pdf.getPage(n);
       const content = await page.getTextContent();
       let previousY: number | undefined;
-      let previousItalic = false;
+      let previousStyle = '';
       const parts: string[] = [];
       for (const item of content.items) {
         if (!('str' in item)) continue;
         const y = item.transform[5];
-        const font = `${item.fontName} ${content.styles[item.fontName]?.fontFamily ?? ''}`;
-        const italic = /italic|oblique/i.test(font);
+        const fontStyle = content.styles[item.fontName] as { fontFamily?: string; fontWeight?: number | string };
+        const font = `${item.fontName} ${fontStyle.fontFamily ?? ''} ${fontStyle.fontWeight ?? ''}`;
+        const style = `${/bold|black|heavy|demi/i.test(font) ? 'b' : ''}${/italic|oblique/i.test(font) ? 'i' : ''}`;
+        const marker = (value: string) => value === 'bi' ? '***' : value === 'b' ? '**' : value === 'i' ? '*' : '';
         if (previousY !== undefined && Math.abs(y - previousY) > 3) {
-          if (previousItalic) parts.push('*');
+          if (previousStyle) parts.push(marker(previousStyle));
           parts.push('\n');
-          previousItalic = false;
+          previousStyle = '';
         } else if (parts.length && !parts[parts.length - 1].endsWith('\n')) parts.push(' ');
-        if (italic !== previousItalic) parts.push('*');
+        if (style !== previousStyle) {
+          if (previousStyle) parts.push(marker(previousStyle));
+          if (style) parts.push(marker(style));
+        }
         parts.push(item.str);
-        previousItalic = italic;
+        previousStyle = style;
         previousY = y;
       }
-      if (previousItalic) parts.push('*');
+      if (previousStyle) parts.push(previousStyle === 'bi' ? '***' : previousStyle === 'b' ? '**' : '*');
       pages.push(parts.join(''));
       page.cleanup();
     }
@@ -89,15 +95,39 @@ export async function textFromFile(file: File): Promise<string> {
   throw new Error('Format non pris en charge. Choisissez TXT, PDF textuel ou DOCX.');
 }
 
+function plain(value: string): string { return value.replace(/\*\*/g, '').replace(/(?<!\*)\*(?!\*)|_/g, '').trim(); }
+
 function isScene(value: string): boolean {
-  return /^(?:acte|scène|scene|act)\b[\s.:\dIVX-]*/i.test(value) || /^(?:int\.|ext\.)\s/i.test(value);
+  const row = plain(value);
+  return /^(?:acte|act|scène|scene)\s*(?:n[°o.]?\s*)?(?:\d+|[ivxlcdm]+)?\b[\s:—-]*(?:.*)?$/i.test(row)
+    || /^(?:prologue|épilogue|entracte)\b/i.test(row)
+    || /^(?:int\.|ext\.)\s/i.test(row);
+}
+
+function isPageNumber(value: string): boolean {
+  const row = plain(value);
+  return /^(?:\d{1,4}|page\s+\d{1,4}(?:\s*(?:sur|of)\s*\d{1,4})?|[-–—]\s*\d{1,4}\s*[-–—])$/i.test(row);
+}
+
+const excludedNames = /^(?:acte?|scènes?|personnages?|distribution|dramatis personae|titre|sous[- ]titre|auteur(?:e)?|écrit par|de|d'après|d’après|résumé|resume|sommaire|prologue|épilogue|entracte|fin|décor|costumes?|notes?|page|copyright|édition|editions?)$/i;
+
+function isCharacterName(value: string): boolean {
+  const name = plain(value);
+  return !!name && name.length <= 35 && !/\d|[.!?;()\[\]]/.test(name) && !excludedNames.test(name) && /\p{L}/u.test(name);
 }
 
 function isUppercaseName(value: string): boolean {
-  const trimmed = value.trim();
-  if (!trimmed || trimmed.length > 35 || /\d/.test(trimmed) || isScene(trimmed)) return false;
-  if (/[.!?;:()\[\]]/.test(trimmed)) return false;
-  return /[A-ZÀ-ÖØ-Þ]/.test(trimmed) && trimmed === trimmed.toLocaleUpperCase();
+  const name = plain(value);
+  const words = name.split(/\s+/);
+  return isCharacterName(name) && !(words.length >= 3 && name.length > 18)
+    && /[A-ZÀ-ÖØ-Þ]/.test(name) && name === name.toLocaleUpperCase();
+}
+
+function isBoldName(value: string): boolean { return /^\*\*[^*]+\*\*$/.test(value.trim()) && isCharacterName(value); }
+
+function looksLikeCharacterHeader(value: string, next: string | undefined): boolean {
+  return !!next && !isPageNumber(next) && !isScene(next) && !isBoldName(next) && !isUppercaseName(next)
+    && (isBoldName(value) || isUppercaseName(value));
 }
 
 export function parseScript(text: string, title: string): Project {
@@ -127,29 +157,32 @@ export function parseScript(text: string, title: string): Project {
   let lastDialogue: ScriptLine | null = null;
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i].trim();
-    if (!row) { current = null; lastDialogue = null; continue; }
-    if (isScene(row)) { addLine('scene', row); current = null; lastDialogue = null; continue; }
-    if (/^(?:personnages|distribution|dramatis personae)\s*:/i.test(row)) {
-      addLine('direction', row); current = null; lastDialogue = null; continue;
+    if (!row) { lastDialogue = null; continue; }
+    if (isPageNumber(row)) continue;
+    if (isScene(row)) { addLine('scene', plain(row)); current = null; lastDialogue = null; continue; }
+    if (/^(?:personnages|distribution|dramatis personae|décors?|costumes?|sommaire|résumé|resume|auteur(?:e)?|édition|editions?)\b/i.test(plain(row))) {
+      current = null; lastDialogue = null; continue;
     }
-    const colon = row.match(/^([\p{L}][\p{L}\p{M}'’ .-]{0,34})\s*:\s*(.+)$/u);
-    if (colon && !isScene(colon[1])) {
-      current = addCharacter(colon[1]);
+    const colon = row.match(/^(\*\*[^*]+\*\*|[\p{L}][\p{L}\p{M}'’ .-]{0,34})\s*:\s*(.*)$/u);
+    if (colon && isCharacterName(colon[1])) {
+      current = addCharacter(plain(colon[1]));
       lastDialogue = addLine('dialogue', colon[2], current.id);
       continue;
     }
-    if (isUppercaseName(row) && rows.slice(i + 1).find(next => next.trim()) !== undefined) {
-      current = addCharacter(row);
+    const next = rows.slice(i + 1).find(nextRow => nextRow.trim())?.trim();
+    if (looksLikeCharacterHeader(row, next)) {
+      current = addCharacter(plain(row));
       lastDialogue = null;
       continue;
     }
     if (/^\([^()]+\)$|^\[[^\[\]]+\]$|^\*[^*]+\*$|^_[^_]+_$/.test(row)) {
-      addLine('direction', row); lastDialogue = null; continue;
+      addLine('direction', plain(row)); lastDialogue = null; continue;
     }
-    if (lastDialogue && lastDialogue.characterId === (current?.id ?? null)) {
+    if (!current) { lastDialogue = null; continue; }
+    if (lastDialogue && lastDialogue.characterId === current.id) {
       lastDialogue.text += ` ${row}`;
     } else {
-      lastDialogue = addLine('dialogue', row, current?.id ?? null);
+      lastDialogue = addLine('dialogue', row, current.id);
     }
   }
   project.currentLineId = project.lines[0]?.id ?? null;
